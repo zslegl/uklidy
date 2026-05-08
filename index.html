@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🏠 Úklidy — Domácí správce</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #232733;
+    --border: #2e3344;
+    --text: #e4e7ef;
+    --text2: #8b90a0;
+    --accent: #6c5ce7;
+    --accent2: #a29bfe;
+    --green: #00b894;
+    --green-bg: rgba(0,184,148,0.12);
+    --orange: #fdcb6e;
+    --orange-bg: rgba(253,203,110,0.12);
+    --red: #e17055;
+    --red-bg: rgba(225,112,85,0.12);
+    --blue: #74b9ff;
+    --pink: #fd79a8;
+    --zdenek: #6c5ce7;
+    --partner: #fd79a8;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  .app-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .app-title { font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+  .header-stats { display: flex; gap: 20px; align-items: center; }
+  .stat-badge { display: flex; align-items: center; gap: 6px; background: var(--surface2); padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+  .stat-badge.zdenek { border: 1px solid var(--zdenek); color: var(--accent2); }
+  .stat-badge.partner { border: 1px solid var(--partner); color: var(--pink); }
+
+  .nav { display: flex; gap: 4px; background: var(--surface); padding: 8px 24px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+  .nav-btn { background: none; border: none; color: var(--text2); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; white-space: nowrap; transition: all 0.2s; }
+  .nav-btn:hover { background: var(--surface2); color: var(--text); }
+  .nav-btn.active { background: var(--accent); color: #fff; }
+
+  .main { padding: 20px 24px; max-width: 1100px; margin: 0 auto; }
+  .section-title { font-size: 16px; font-weight: 700; margin: 24px 0 12px; display: flex; align-items: center; gap: 8px; }
+  .section-title:first-child { margin-top: 0; }
+
+  .freq-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .freq-weekly { background: rgba(116,185,255,0.15); color: var(--blue); }
+  .freq-biweekly { background: rgba(162,155,254,0.15); color: var(--accent2); }
+  .freq-monthly { background: rgba(253,203,110,0.15); color: var(--orange); }
+  .freq-yearly { background: rgba(225,112,85,0.15); color: var(--red); }
+
+  .chore-list { display: flex; flex-direction: column; gap: 6px; }
+  .chore-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; display: flex; align-items: center; gap: 12px; transition: all 0.2s; cursor: default; }
+  .chore-card:hover { border-color: var(--accent); }
+  .chore-card.overdue { border-left: 3px solid var(--red); background: var(--red-bg); }
+  .chore-card.due-soon { border-left: 3px solid var(--orange); background: var(--orange-bg); }
+  .chore-card.done-recently { border-left: 3px solid var(--green); opacity: 0.7; }
+
+  .chore-urgency { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .urgency-overdue { background: var(--red); box-shadow: 0 0 8px var(--red); }
+  .urgency-soon { background: var(--orange); box-shadow: 0 0 8px var(--orange); }
+  .urgency-ok { background: var(--green); }
+  .urgency-done { background: var(--green); opacity: 0.5; }
+
+  .chore-info { flex: 1; min-width: 0; }
+  .chore-name { font-size: 14px; font-weight: 600; }
+  .chore-meta { font-size: 12px; color: var(--text2); margin-top: 2px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .chore-assignee { font-size: 11px; font-weight: 600; padding: 2px 10px; border-radius: 10px; flex-shrink: 0; }
+  .assignee-zdenek { background: rgba(108,92,231,0.2); color: var(--accent2); }
+  .assignee-partner { background: rgba(253,121,168,0.2); color: var(--pink); }
+  .chore-points { font-size: 12px; font-weight: 700; color: var(--orange); flex-shrink: 0; min-width: 40px; text-align: right; }
+
+  .btn-done { background: var(--green); color: #fff; border: none; padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; flex-shrink: 0; }
+  .btn-done:hover { transform: scale(1.05); filter: brightness(1.1); }
+  .btn-done:disabled { opacity: 0.3; cursor: default; transform: none; }
+  .btn-done-by { background: var(--surface2); color: var(--text2); border: 1px solid var(--border); padding: 6px 14px; border-radius: 8px; font-size: 12px; cursor: default; flex-shrink: 0; }
+
+  .leaderboard { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  .player-card { background: var(--surface); border: 2px solid var(--border); border-radius: 16px; padding: 24px; text-align: center; transition: all 0.3s; }
+  .player-card.leading { border-color: var(--orange); box-shadow: 0 0 20px rgba(253,203,110,0.1); }
+  .player-avatar { width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; margin: 0 auto 12px; font-weight: 700; }
+  .avatar-zdenek { background: rgba(108,92,231,0.2); color: var(--accent2); }
+  .avatar-partner { background: rgba(253,121,168,0.2); color: var(--pink); }
+  .player-name { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  .player-level { font-size: 12px; color: var(--text2); margin-bottom: 16px; }
+  .player-score { font-size: 42px; font-weight: 800; }
+  .player-score.zdenek-color { color: var(--accent2); }
+  .player-score.partner-color { color: var(--pink); }
+  .player-label { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .player-stats { display: flex; justify-content: center; gap: 20px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+  .pstat { text-align: center; }
+  .pstat-val { font-size: 20px; font-weight: 700; }
+  .pstat-label { font-size: 11px; color: var(--text2); }
+
+  .streak-bar { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; display: flex; align-items: center; gap: 16px; margin-bottom: 8px; }
+  .streak-fire { font-size: 28px; }
+  .streak-info { flex: 1; }
+  .streak-title { font-size: 14px; font-weight: 600; }
+  .streak-desc { font-size: 12px; color: var(--text2); }
+  .streak-count { font-size: 28px; font-weight: 800; color: var(--orange); }
+
+  .history-item { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 16px; display: flex; align-items: center; gap: 12px; margin-bottom: 4px; font-size: 13px; }
+  .history-date { color: var(--text2); min-width: 100px; font-size: 12px; }
+  .history-who { font-weight: 600; min-width: 80px; }
+  .history-what { flex: 1; }
+  .history-pts { color: var(--orange); font-weight: 700; }
+
+  .settings-row { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin-bottom: 8px; }
+  .settings-row label { font-size: 14px; font-weight: 600; display: block; margin-bottom: 8px; }
+  .settings-row input { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 8px; font-size: 14px; width: 100%; max-width: 300px; }
+  .settings-row input:focus { outline: none; border-color: var(--accent); }
+  .btn-save { background: var(--accent); color: #fff; border: none; padding: 8px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 12px; }
+  .btn-save:hover { filter: brightness(1.1); }
+  .btn-reset { background: var(--red); color: #fff; border: none; padding: 8px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 12px; margin-left: 8px; }
+
+  .who-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+  .who-modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; min-width: 280px; text-align: center; }
+  .who-modal h3 { margin-bottom: 16px; font-size: 16px; }
+  .who-modal-btns { display: flex; gap: 12px; justify-content: center; }
+  .who-btn { padding: 12px 28px; border-radius: 12px; border: 2px solid var(--border); background: var(--surface2); color: var(--text); font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+  .who-btn:hover { transform: scale(1.05); }
+  .who-btn.zdenek:hover { border-color: var(--zdenek); background: rgba(108,92,231,0.15); }
+  .who-btn.partner:hover { border-color: var(--partner); background: rgba(253,121,168,0.15); }
+
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(100px); background: var(--green); color: #fff; padding: 12px 24px; border-radius: 12px; font-weight: 600; font-size: 14px; z-index: 2000; transition: transform 0.3s ease; pointer-events: none; }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .empty-state { text-align: center; padding: 40px; color: var(--text2); font-size: 14px; }
+  .progress-bar-outer { width: 100%; height: 6px; background: var(--surface2); border-radius: 3px; margin-top: 8px; overflow: hidden; }
+  .progress-bar-inner { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+
+  .points-table { width: 100%; border-collapse: separate; border-spacing: 0 4px; }
+  .points-table td { background: var(--surface); padding: 8px 12px; font-size: 13px; }
+  .points-table td:first-child { border-radius: 8px 0 0 8px; font-weight: 500; }
+  .points-table td:nth-child(2) { width: 50px; text-align: center; color: var(--text2); font-size: 12px; }
+  .points-table td:last-child { border-radius: 0 8px 8px 0; width: 70px; text-align: right; }
+  .points-input { background: var(--surface2); border: 1px solid var(--border); color: var(--orange); padding: 4px 8px; border-radius: 6px; font-size: 13px; font-weight: 700; width: 55px; text-align: center; }
+  .points-input:focus { outline: none; border-color: var(--accent); }
+  .points-freq-header td { background: none !important; padding: 12px 12px 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text2); }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  @media (max-width: 600px) {
+    .leaderboard { grid-template-columns: 1fr; }
+    .app-header { flex-direction: column; gap: 8px; }
+    .header-stats { flex-wrap: wrap; justify-content: center; }
+    .main { padding: 16px; }
+    .chore-card { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app-header">
+  <div class="app-title">🏠 Úklidy</div>
+  <div class="header-stats" id="headerStats"></div>
+</div>
+
+<div class="nav">
+  <button class="nav-btn active" data-tab="dashboard">📋 Přehled</button>
+  <button class="nav-btn" data-tab="leaderboard">🏆 Žebříček</button>
+  <button class="nav-btn" data-tab="history">📜 Historie</button>
+  <button class="nav-btn" data-tab="settings">⚙️ Nastavení</button>
+</div>
+
+<div class="main">
+  <div class="tab-content active" id="tab-dashboard"></div>
+  <div class="tab-content" id="tab-leaderboard"></div>
+  <div class="tab-content" id="tab-history"></div>
+  <div class="tab-content" id="tab-settings">
+    <div class="section-title">⚙️ Nastavení</div>
+    <div class="settings-row">
+      <label>Jméno hráče 1</label>
+      <input type="text" id="name1" placeholder="Zdeněk">
+    </div>
+    <div class="settings-row">
+      <label>Jméno hráče 2</label>
+      <input type="text" id="name2" placeholder="Partnerka">
+    </div>
+    <button class="btn-save" onclick="saveSettings()">Uložit jména</button>
+
+    <div class="section-title" style="margin-top:32px">🎯 Body za úkoly</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:12px">Uprav bodové ohodnocení jednotlivých prací. Změny se projeví u nově splněných úkolů.</div>
+    <div id="pointsEditor"></div>
+    <button class="btn-save" onclick="savePoints()">Uložit body</button>
+
+    <div class="section-title" style="margin-top:32px">🗑 Nebezpečná zóna</div>
+    <button class="btn-reset" onclick="resetAll()">Resetovat vše</button>
+  </div>
+</div>
+
+<div class="who-modal-overlay" id="whoModal" style="display:none">
+  <div class="who-modal">
+    <h3 id="whoModalTitle">Kdo to udělal?</h3>
+    <div class="who-modal-btns">
+      <button class="who-btn zdenek" id="whoBtn1" onclick="confirmDone('p1')"></button>
+      <button class="who-btn partner" id="whoBtn2" onclick="confirmDone('p2')"></button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div id="loadingOverlay" style="position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;flex-direction:column;gap:12px">
+  <div style="font-size:32px">🏠</div>
+  <div style="color:var(--text2);font-size:14px">Načítám data...</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+// ==================== DATA ====================
+const DEFAULT_CHORES = [
+  { id: 'w1', name: 'Vyluxovat celý byt', freq: 'weekly', days: 7, points: 8 },
+  { id: 'w2', name: 'Dřez kuchyně', freq: 'weekly', days: 7, points: 4 },
+  { id: 'w3', name: 'Umýt sprchu + umyvadlo (provozně)', freq: 'weekly', days: 7, points: 5 },
+  { id: 'w4', name: 'Umýt záchod + umyvadlo (provozně)', freq: 'weekly', days: 7, points: 5 },
+  { id: 'w5', name: 'Vyměnit ručníky + utěrky', freq: 'weekly', days: 7, points: 3 },
+  { id: 'b1', name: 'Sprchový kout pořádně', freq: 'biweekly', days: 14, points: 12 },
+  { id: 'b2', name: 'Záchod pořádně', freq: 'biweekly', days: 14, points: 10 },
+  { id: 'b3', name: 'Sporák', freq: 'biweekly', days: 14, points: 8 },
+  { id: 'b4', name: 'Výměna povlečení', freq: 'biweekly', days: 14, points: 7 },
+  { id: 'm1', name: 'Utřít prach / vysát — okna, knihovna, stoly, skříňky, komody, noční stoly, postel', freq: 'monthly', days: 30, points: 18 },
+  { id: 'm2', name: 'Vysát + vytřít robot celý byt (s přípravou)', freq: 'monthly', days: 30, points: 15 },
+  { id: 'y1', name: 'Vyprat závěsy', freq: 'yearly', days: 365, points: 25 },
+  { id: 'y2', name: 'Umýt okna', freq: 'yearly', days: 365, points: 30 },
+  { id: 'y3', name: 'Umýt kuchyň — poličky, dvířka, nad linkou', freq: 'yearly', days: 365, points: 28 },
+  { id: 'y4', name: 'Projít spižírnu', freq: 'yearly', days: 365, points: 15 },
+  { id: 'y5', name: 'Projít špajz a uklidit', freq: 'yearly', days: 365, points: 15 },
+  { id: 'y6', name: 'Projít mrazák', freq: 'yearly', days: 365, points: 12 },
+  { id: 'y7', name: 'Čistění koberců', freq: 'yearly', days: 365, points: 25 },
+  { id: 'y8', name: 'Čistění pohovky', freq: 'yearly', days: 365, points: 20 },
+  { id: 'y9', name: 'Projít věci a vyházet zbytečnosti', freq: 'yearly', days: 365, points: 20 },
+];
+
+const LEVELS = [
+  { name: 'Nováček', minPts: 0 },
+  { name: 'Začátečník', minPts: 50 },
+  { name: 'Pomocník', minPts: 150 },
+  { name: 'Šikula', minPts: 300 },
+  { name: 'Profík', minPts: 500 },
+  { name: 'Expert', minPts: 800 },
+  { name: 'Mistr', minPts: 1200 },
+  { name: 'Grandmistr', minPts: 1800 },
+  { name: 'Legenda domácnosti', minPts: 2500 },
+];
+
+const FREQ_LABELS = { weekly: 'Týdně', biweekly: '14 dní', monthly: 'Měsíčně', yearly: 'Ročně' };
+const FREQ_ORDER = ['weekly', 'biweekly', 'monthly', 'yearly'];
+
+// ==================== SUPABASE ====================
+const SUPABASE_URL = 'https://cqqpadumtnpmkdohnuom.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_LZXBqWaGEADY2XfIJLzyNA_64ZaFPTg';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ==================== STATE ====================
+let state = {
+  names: { p1: 'Zdeněk', p2: 'Partnerka' },
+  customPoints: {},
+  history: [],
+  streaks: { p1: 0, p2: 0 },
+  totalPoints: { p1: 0, p2: 0 },
+  totalTasks: { p1: 0, p2: 0 },
+};
+
+async function loadFromSupabase() {
+  const { data: settings } = await sb.from('uklidy_settings').select('*');
+  if (settings) {
+    for (const row of settings) {
+      if (row.key === 'names') state.names = row.value;
+      if (row.key === 'customPoints') state.customPoints = row.value || {};
+    }
+  }
+
+  const { data: logs } = await sb.from('uklidy_log').select('*').order('completed_at', { ascending: true });
+  if (logs) {
+    state.history = logs.map(r => ({
+      id: r.id,
+      choreId: r.chore_id,
+      player: r.player,
+      date: r.completed_at,
+      points: r.points,
+    }));
+  }
+
+  state.totalPoints = { p1: 0, p2: 0 };
+  state.totalTasks = { p1: 0, p2: 0 };
+  for (const h of state.history) {
+    state.totalPoints[h.player] += h.points;
+    state.totalTasks[h.player] += 1;
+  }
+  computeStreaks();
+}
+
+async function saveSetting(key, value) {
+  await sb.from('uklidy_settings').upsert({ key, value }, { onConflict: 'key' });
+}
+
+async function addLogEntry(choreId, player, points) {
+  const { data, error } = await sb.from('uklidy_log').insert({
+    chore_id: choreId, player: player, points: points,
+  }).select().single();
+  if (error) { showToast('❌ Chyba při ukládání: ' + error.message); return null; }
+  return data;
+}
+
+// ==================== HELPERS ====================
+function getChorePoints(chore) {
+  if (state.customPoints && state.customPoints[chore.id] !== undefined) return state.customPoints[chore.id];
+  return chore.points;
+}
+
+function getLastDone(choreId) {
+  for (let i = state.history.length - 1; i >= 0; i--) {
+    if (state.history[i].choreId === choreId) return state.history[i];
+  }
+  return null;
+}
+
+function daysSince(dateStr) {
+  if (!dateStr) return Infinity;
+  return Math.floor((new Date() - new Date(dateStr)) / (1000*60*60*24));
+}
+
+function getUrgency(chore) {
+  const last = getLastDone(chore.id);
+  const ds = daysSince(last?.date);
+  const ratio = ds / chore.days;
+  if (ratio >= 1.2) return 'overdue';
+  if (ratio >= 0.8) return 'due-soon';
+  if (ds < chore.days * 0.3) return 'done-recently';
+  return 'ok';
+}
+
+function getNextAssignee(choreId) {
+  const last = getLastDone(choreId);
+  if (!last) return 'p1';
+  return last.player === 'p1' ? 'p2' : 'p1';
+}
+
+function getLevel(points) {
+  let lvl = LEVELS[0];
+  for (const l of LEVELS) { if (points >= l.minPts) lvl = l; }
+  return lvl;
+}
+
+function getNextLevel(points) {
+  for (const l of LEVELS) { if (points < l.minPts) return l; }
+  return null;
+}
+
+function computeStreaks() {
+  for (const p of ['p1', 'p2']) {
+    const ph = state.history.filter(h => h.player === p);
+    if (ph.length === 0) { state.streaks[p] = 0; continue; }
+    let streak = 0;
+    const now = new Date();
+    for (let w = 0; w < 52; w++) {
+      const ws = new Date(now); ws.setDate(ws.getDate() - (w + 1) * 7);
+      const we = new Date(now); we.setDate(we.getDate() - w * 7);
+      if (ph.some(h => { const d = new Date(h.date); return d >= ws && d < we; })) streak++;
+      else break;
+    }
+    state.streaks[p] = streak;
+  }
+}
+
+function formatDate(dateStr) {
+  return new Date(dateStr).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'short' });
+}
+
+function formatDateFull(dateStr) {
+  return new Date(dateStr).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ==================== MARKING DONE ====================
+let pendingChoreId = null;
+
+function markDone(choreId) {
+  pendingChoreId = choreId;
+  const chore = DEFAULT_CHORES.find(c => c.id === choreId);
+  document.getElementById('whoModalTitle').textContent = `Kdo udělal: ${chore.name}?`;
+  document.getElementById('whoBtn1').textContent = state.names.p1;
+  document.getElementById('whoBtn2').textContent = state.names.p2;
+  document.getElementById('whoModal').style.display = 'flex';
+}
+
+async function confirmDone(player) {
+  document.getElementById('whoModal').style.display = 'none';
+  if (!pendingChoreId) return;
+  const chore = DEFAULT_CHORES.find(c => c.id === pendingChoreId);
+  const pts = getChorePoints(chore);
+  const choreId = pendingChoreId;
+  pendingChoreId = null;
+
+  const row = await addLogEntry(choreId, player, pts);
+  if (!row) return;
+
+  state.history.push({ id: row.id, choreId, player, date: row.completed_at, points: pts });
+  state.totalPoints[player] += pts;
+  state.totalTasks[player] += 1;
+  computeStreaks();
+  showToast(`✅ +${pts} bodů pro ${state.names[player]}!`);
+  renderAll();
+}
+
+document.getElementById('whoModal').addEventListener('click', function(e) {
+  if (e.target === this) { this.style.display = 'none'; pendingChoreId = null; }
+});
+
+// ==================== RENDERING ====================
+function renderHeader() {
+  document.getElementById('headerStats').innerHTML = `
+    <div class="stat-badge zdenek">💜 ${state.names.p1}: <strong>${state.totalPoints.p1} b.</strong></div>
+    <div class="stat-badge partner">💗 ${state.names.p2}: <strong>${state.totalPoints.p2} b.</strong></div>
+  `;
+}
+
+function renderDashboard() {
+  const el = document.getElementById('tab-dashboard');
+  let html = '';
+  const overdue = DEFAULT_CHORES.filter(c => getUrgency(c) === 'overdue').length;
+  const dueSoon = DEFAULT_CHORES.filter(c => getUrgency(c) === 'due-soon').length;
+
+  if (overdue > 0 || dueSoon > 0) {
+    html += `<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">`;
+    if (overdue > 0) html += `<div style="background:var(--red-bg);border:1px solid var(--red);border-radius:10px;padding:10px 16px;font-size:13px;font-weight:600;color:var(--red)">🔴 ${overdue} po termínu</div>`;
+    if (dueSoon > 0) html += `<div style="background:var(--orange-bg);border:1px solid var(--orange);border-radius:10px;padding:10px 16px;font-size:13px;font-weight:600;color:var(--orange)">🟡 ${dueSoon} brzy na řadě</div>`;
+    html += `</div>`;
+  }
+
+  for (const freq of FREQ_ORDER) {
+    const chores = DEFAULT_CHORES.filter(c => c.freq === freq);
+    html += `<div class="section-title"><span class="freq-badge freq-${freq}">${FREQ_LABELS[freq]}</span></div><div class="chore-list">`;
+    const urgencyOrder = { overdue: 0, 'due-soon': 1, ok: 2, 'done-recently': 3 };
+    const sorted = [...chores].sort((a, b) => urgencyOrder[getUrgency(a)] - urgencyOrder[getUrgency(b)]);
+
+    for (const chore of sorted) {
+      const urgency = getUrgency(chore);
+      const last = getLastDone(chore.id);
+      const nextAssignee = getNextAssignee(chore.id);
+      const ds = daysSince(last?.date);
+      const daysLeft = chore.days - ds;
+
+      let cardClass = 'chore-card';
+      if (urgency === 'overdue') cardClass += ' overdue';
+      else if (urgency === 'due-soon') cardClass += ' due-soon';
+      else if (urgency === 'done-recently') cardClass += ' done-recently';
+
+      let urgencyClass = 'urgency-ok';
+      if (urgency === 'overdue') urgencyClass = 'urgency-overdue';
+      else if (urgency === 'due-soon') urgencyClass = 'urgency-soon';
+      else if (urgency === 'done-recently') urgencyClass = 'urgency-done';
+
+      let timeInfo = '';
+      if (last) {
+        if (daysLeft > 0) timeInfo = `další za ${daysLeft} dní`;
+        else if (daysLeft === 0) timeInfo = `dnes na řadě!`;
+        else timeInfo = `${Math.abs(daysLeft)} dní po termínu!`;
+        timeInfo += ` · naposledy ${formatDate(last.date)}`;
+        if (last.player) timeInfo += ` (${state.names[last.player]})`;
+      } else {
+        timeInfo = 'zatím neuděláno';
+      }
+
+      const assigneeClass = nextAssignee === 'p1' ? 'assignee-zdenek' : 'assignee-partner';
+      const chorePts = getChorePoints(chore);
+      let actionBtn = (urgency === 'done-recently' && ds < 2)
+        ? `<span class="btn-done-by">✓ hotovo</span>`
+        : `<button class="btn-done" onclick="markDone('${chore.id}')">Hotovo ✓</button>`;
+
+      html += `<div class="${cardClass}">
+        <div class="chore-urgency ${urgencyClass}"></div>
+        <div class="chore-info"><div class="chore-name">${chore.name}</div><div class="chore-meta"><span>${timeInfo}</span></div></div>
+        <span class="chore-assignee ${assigneeClass}">→ ${state.names[nextAssignee]}</span>
+        <div class="chore-points">${chorePts} b.</div>
+        ${actionBtn}
+      </div>`;
+    }
+    html += `</div>`;
+  }
+  el.innerHTML = html;
+}
+
+function renderLeaderboard() {
+  const el = document.getElementById('tab-leaderboard');
+  const p1Leading = state.totalPoints.p1 >= state.totalPoints.p2;
+  const level1 = getLevel(state.totalPoints.p1), level2 = getLevel(state.totalPoints.p2);
+  const next1 = getNextLevel(state.totalPoints.p1), next2 = getNextLevel(state.totalPoints.p2);
+
+  function playerCard(name, pts, tasks, streak, level, next, color, avatarClass, scoreClass, isLeading) {
+    return `<div class="player-card ${isLeading ? 'leading' : ''}">
+      ${isLeading ? '<div style="font-size:24px;margin-bottom:8px">👑</div>' : ''}
+      <div class="player-avatar ${avatarClass}">${name[0]}</div>
+      <div class="player-name">${name}</div>
+      <div class="player-level">${level.name}</div>
+      <div class="player-score ${scoreClass}">${pts}</div>
+      <div class="player-label">bodů celkem</div>
+      ${next ? `<div class="progress-bar-outer" style="margin-top:12px"><div class="progress-bar-inner" style="width:${Math.min(100, ((pts - level.minPts) / (next.minPts - level.minPts)) * 100)}%;background:var(--${color})"></div></div>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px">${next.minPts - pts} b. do "${next.name}"</div>` : '<div style="font-size:11px;color:var(--orange);margin-top:8px">🌟 MAX LEVEL!</div>'}
+      <div class="player-stats">
+        <div class="pstat"><div class="pstat-val">${tasks}</div><div class="pstat-label">úkolů</div></div>
+        <div class="pstat"><div class="pstat-val">🔥 ${streak}</div><div class="pstat-label">týdnů</div></div>
+      </div>
+    </div>`;
+  }
+
+  let html = `<div class="section-title">🏆 Žebříček</div><div class="leaderboard">`;
+  html += playerCard(state.names.p1, state.totalPoints.p1, state.totalTasks.p1, state.streaks.p1, level1, next1, 'zdenek', 'avatar-zdenek', 'zdenek-color', p1Leading);
+  html += playerCard(state.names.p2, state.totalPoints.p2, state.totalTasks.p2, state.streaks.p2, level2, next2, 'partner', 'avatar-partner', 'partner-color', !p1Leading);
+  html += `</div>`;
+
+  html += `<div class="section-title">🔥 Série (Streaky)</div>`;
+  for (const p of ['p1', 'p2']) {
+    html += `<div class="streak-bar"><div class="streak-fire">🔥</div><div class="streak-info"><div class="streak-title">${state.names[p]}</div><div class="streak-desc">Počet po sobě jdoucích týdnů s alespoň jedním splněným úkolem</div></div><div class="streak-count">${state.streaks[p]}</div></div>`;
+  }
+
+  const diff = Math.abs(state.totalPoints.p1 - state.totalPoints.p2);
+  const maxPts = Math.max(state.totalPoints.p1, state.totalPoints.p2);
+  let fairnessMsg = '';
+  if (maxPts === 0) fairnessMsg = '⚖️ Zatím bez dat — začněte uklízet!';
+  else if (diff / maxPts < 0.1) fairnessMsg = '⚖️ Skvělé! Práce je rozdělená velmi spravedlivě.';
+  else if (diff / maxPts < 0.25) fairnessMsg = '⚖️ Mírný nepoměr — ' + (state.totalPoints.p1 > state.totalPoints.p2 ? state.names.p1 : state.names.p2) + ' má trochu víc.';
+  else fairnessMsg = '⚠️ Pozor! ' + (state.totalPoints.p1 > state.totalPoints.p2 ? state.names.p1 : state.names.p2) + ' dělá výrazně víc práce.';
+  html += `<div style="text-align:center;margin-top:20px;padding:16px;background:var(--surface);border-radius:12px;border:1px solid var(--border);font-size:14px;color:var(--text2)">${fairnessMsg}</div>`;
+  el.innerHTML = html;
+}
+
+function renderHistory() {
+  const el = document.getElementById('tab-history');
+  let html = `<div class="section-title">📜 Historie</div>`;
+  if (state.history.length === 0) {
+    html += `<div class="empty-state">Zatím žádná historie. Označte první úkol jako hotový!</div>`;
+  } else {
+    for (const h of [...state.history].reverse().slice(0, 100)) {
+      const chore = DEFAULT_CHORES.find(c => c.id === h.choreId);
+      const whoClass = h.player === 'p1' ? 'color:var(--accent2)' : 'color:var(--pink)';
+      html += `<div class="history-item">
+        <div class="history-date">${formatDateFull(h.date)}</div>
+        <div class="history-who" style="${whoClass}">${state.names[h.player]}</div>
+        <div class="history-what">${chore?.name || h.choreId}</div>
+        <div class="history-pts">+${h.points}</div>
+      </div>`;
+    }
+  }
+  el.innerHTML = html;
+}
+
+function renderPointsEditor() {
+  let html = '<table class="points-table">';
+  for (const freq of FREQ_ORDER) {
+    html += `<tr class="points-freq-header"><td colspan="3">${FREQ_LABELS[freq]}</td></tr>`;
+    for (const chore of DEFAULT_CHORES.filter(c => c.freq === freq)) {
+      const pts = getChorePoints(chore);
+      const isCustom = state.customPoints && state.customPoints[chore.id] !== undefined;
+      html += `<tr><td>${chore.name}</td>
+        <td style="color:var(--text2);font-size:11px">${isCustom ? `<span style="text-decoration:line-through">${chore.points}</span>` : ''}</td>
+        <td><input type="number" class="points-input" data-chore-id="${chore.id}" value="${pts}" min="1" max="100"></td></tr>`;
+    }
+  }
+  document.getElementById('pointsEditor').innerHTML = html + '</table>';
+}
+
+async function savePoints() {
+  if (!state.customPoints) state.customPoints = {};
+  let changed = 0;
+  document.querySelectorAll('.points-input').forEach(inp => {
+    const choreId = inp.dataset.choreId;
+    const val = parseInt(inp.value);
+    const chore = DEFAULT_CHORES.find(c => c.id === choreId);
+    if (!isNaN(val) && val > 0) {
+      if (val !== chore.points) { state.customPoints[choreId] = val; changed++; }
+      else { delete state.customPoints[choreId]; }
+    }
+  });
+  await saveSetting('customPoints', state.customPoints);
+  renderAll();
+  showToast(changed > 0 ? `Uloženo! ${changed} ${changed === 1 ? 'úkol upraven' : 'úkolů upraveno'}.` : 'Body uloženy (žádné změny).');
+}
+
+function renderSettings() {
+  document.getElementById('name1').value = state.names.p1;
+  document.getElementById('name2').value = state.names.p2;
+  renderPointsEditor();
+}
+
+function renderAll() { renderHeader(); renderDashboard(); renderLeaderboard(); renderHistory(); renderSettings(); }
+
+// ==================== SETTINGS ====================
+async function saveSettings() {
+  state.names.p1 = document.getElementById('name1').value.trim() || 'Zdeněk';
+  state.names.p2 = document.getElementById('name2').value.trim() || 'Partnerka';
+  await saveSetting('names', state.names);
+  renderAll();
+  showToast('Jména uložena!');
+}
+
+async function resetAll() {
+  if (confirm('Opravdu smazat všechna data? Toto nejde vrátit!')) {
+    await sb.from('uklidy_log').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    await saveSetting('names', { p1: 'Zdeněk', p2: 'Partnerka' });
+    await saveSetting('customPoints', {});
+    state.names = { p1: 'Zdeněk', p2: 'Partnerka' };
+    state.customPoints = {};
+    state.history = [];
+    state.totalPoints = { p1: 0, p2: 0 };
+    state.totalTasks = { p1: 0, p2: 0 };
+    state.streaks = { p1: 0, p2: 0 };
+    renderAll();
+    showToast('Vše resetováno.');
+  }
+}
+
+// ==================== NAVIGATION ====================
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ==================== INIT ====================
+async function init() {
+  try {
+    await loadFromSupabase();
+    renderAll();
+  } catch (e) {
+    console.error('Supabase init error:', e);
+    showToast('❌ Nepodařilo se připojit k databázi');
+  } finally {
+    document.getElementById('loadingOverlay').style.display = 'none';
+  }
+}
+init();
+</script>
+</body>
+</html>
