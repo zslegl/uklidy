@@ -678,7 +678,7 @@ let correctPin = null;
 
 async function loadPin() {
   const { data } = await sb.from('uklidy_settings').select('value').eq('key', 'pin').single();
-  if (data) correctPin = data.value;
+  if (data) correctPin = String(data.value);
 }
 
 function checkPin() {
