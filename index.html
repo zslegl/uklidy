@@ -243,6 +243,7 @@
     <h2>Úklidy</h2>
     <p>Zadej PIN pro přístup</p>
     <input type="password" id="pinInput" class="pin-input" maxlength="6" inputmode="numeric" pattern="[0-9]*" autofocus>
+    <button id="pinSubmit" class="btn-save" style="margin-top:16px;width:100%;padding:12px" onclick="checkPin()">Vstoupit</button>
     <div class="pin-error" id="pinError"></div>
   </div>
 </div>
@@ -674,28 +675,40 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
 });
 
 // ==================== PIN ====================
-let correctPin = null;
+const AUTH_EMAIL = 'pin@uklidy.cz';
+const AUTH_SALT = 'Ukl1dy!';
 
-async function loadPin() {
-  const { data } = await sb.from('uklidy_settings').select('value').eq('key', 'pin').single();
-  if (data) correctPin = String(data.value);
-}
-
-function checkPin() {
+async function checkPin() {
   const input = document.getElementById('pinInput');
   const error = document.getElementById('pinError');
-  if (input.value === correctPin) {
-    sessionStorage.setItem('uklidy_auth', '1');
+  const btn = document.getElementById('pinSubmit');
+  if (input.value.length < 4) return;
+
+  input.disabled = true;
+  btn.disabled = true;
+  error.textContent = '';
+
+  const { error: authError } = await sb.auth.signInWithPassword({
+    email: AUTH_EMAIL,
+    password: AUTH_SALT + input.value,
+  });
+
+  input.disabled = false;
+  btn.disabled = false;
+
+  if (!authError) {
     document.getElementById('pinScreen').style.display = 'none';
     startApp();
-  } else if (input.value.length >= 4) {
+  } else {
     input.classList.add('shake');
     error.textContent = 'Špatný PIN';
-    setTimeout(() => { input.classList.remove('shake'); input.value = ''; error.textContent = ''; }, 600);
+    setTimeout(() => { input.classList.remove('shake'); input.value = ''; error.textContent = ''; input.focus(); }, 600);
   }
 }
 
-document.getElementById('pinInput').addEventListener('input', checkPin);
+document.getElementById('pinInput').addEventListener('input', (e) => {
+  if (e.target.value.length === 6) checkPin();
+});
 document.getElementById('pinInput').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') checkPin();
 });
@@ -706,8 +719,8 @@ async function changePin() {
     showToast('❌ PIN musí být 4-6 číslic');
     return;
   }
-  await saveSetting('pin', newPin);
-  correctPin = newPin;
+  const { error } = await sb.auth.updateUser({ password: AUTH_SALT + newPin });
+  if (error) { showToast('❌ Chyba: ' + error.message); return; }
   document.getElementById('newPin').value = '';
   showToast('🔒 PIN změněn!');
 }
@@ -728,19 +741,12 @@ async function startApp() {
 
 async function init() {
   document.getElementById('loadingOverlay').style.display = 'none';
-  try {
-    await loadPin();
-    // Skip PIN if already authenticated in this session
-    if (sessionStorage.getItem('uklidy_auth') === '1') {
-      document.getElementById('pinScreen').style.display = 'none';
-      startApp();
-    } else {
-      document.getElementById('pinInput').focus();
-    }
-  } catch (e) {
-    console.error('Init error:', e);
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
     document.getElementById('pinScreen').style.display = 'none';
-    showToast('❌ Chyba při připojení');
+    startApp();
+  } else {
+    document.getElementById('pinInput').focus();
   }
 }
 init();
