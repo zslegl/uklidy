@@ -675,8 +675,10 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
 });
 
 // ==================== PIN ====================
-const AUTH_EMAIL = 'pin@uklidy.cz';
-const AUTH_SALT = 'Ukl1dy!';
+async function hashPin(pin) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('Ukl1dy!2025' + pin));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
 async function checkPin() {
   const input = document.getElementById('pinInput');
@@ -688,15 +690,31 @@ async function checkPin() {
   btn.disabled = true;
   error.textContent = '';
 
-  const { error: authError } = await sb.auth.signInWithPassword({
-    email: AUTH_EMAIL,
-    password: AUTH_SALT + input.value,
-  });
+  let authenticated = false;
+
+  // Primárně: SHA-256 hash uložený v DB
+  const { data: hashRow } = await sb.from('uklidy_settings').select('value').eq('key', 'pin_hash').single();
+  if (hashRow?.value) {
+    const inputHash = await hashPin(input.value);
+    if (inputHash === hashRow.value) authenticated = true;
+  }
+
+  // Záložní: starý plaintext PIN (migrace ze staré verze)
+  if (!authenticated) {
+    const { data: oldPinRow } = await sb.from('uklidy_settings').select('value').eq('key', 'pin').single();
+    if (oldPinRow?.value && String(oldPinRow.value) === input.value) {
+      const newHash = await hashPin(input.value);
+      await saveSetting('pin_hash', newHash);
+      await sb.from('uklidy_settings').delete().eq('key', 'pin');
+      authenticated = true;
+    }
+  }
 
   input.disabled = false;
   btn.disabled = false;
 
-  if (!authError) {
+  if (authenticated) {
+    sessionStorage.setItem('uklidy_auth', '1');
     document.getElementById('pinScreen').style.display = 'none';
     startApp();
   } else {
@@ -719,8 +737,8 @@ async function changePin() {
     showToast('❌ PIN musí být 4-6 číslic');
     return;
   }
-  const { error } = await sb.auth.updateUser({ password: AUTH_SALT + newPin });
-  if (error) { showToast('❌ Chyba: ' + error.message); return; }
+  const hash = await hashPin(newPin);
+  await saveSetting('pin_hash', hash);
   document.getElementById('newPin').value = '';
   showToast('🔒 PIN změněn!');
 }
@@ -741,8 +759,7 @@ async function startApp() {
 
 async function init() {
   document.getElementById('loadingOverlay').style.display = 'none';
-  const { data: { session } } = await sb.auth.getSession();
-  if (session) {
+  if (sessionStorage.getItem('uklidy_auth') === '1') {
     document.getElementById('pinScreen').style.display = 'none';
     startApp();
   } else {
