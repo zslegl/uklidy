@@ -680,8 +680,10 @@ async function hashPin(pin) {
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+const LS_PIN_KEY = 'uklidy_pin_hash_v1';
+
 async function loadPinFromDb() {
-  const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('Vypršel časový limit připojení')), 8000));
+  const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('DB nedostupná')), 8000));
   const query = (async () => {
     const { data: h } = await sb.from('uklidy_settings').select('value').eq('key', 'pin_hash').maybeSingle();
     if (h?.value) return { type: 'hash', value: h.value };
@@ -703,7 +705,22 @@ async function checkPin() {
   error.textContent = 'Ověřuji…';
 
   try {
-    const pinStatus = await loadPinFromDb();
+    let pinStatus;
+    let dbOffline = false;
+    try {
+      pinStatus = await loadPinFromDb();
+      // Zakešuj hash do localStorage pro případ výpadku Supabase
+      if (pinStatus.type === 'hash') localStorage.setItem(LS_PIN_KEY, pinStatus.value);
+    } catch (_) {
+      dbOffline = true;
+      const cached = localStorage.getItem(LS_PIN_KEY);
+      if (cached) {
+        pinStatus = { type: 'hash', value: cached };
+      } else {
+        throw new Error('Databáze nedostupná a PIN není zakešován. Obnov Supabase projekt na supabase.com.');
+      }
+    }
+
     let authenticated = false;
     let noPinSet = false;
 
@@ -712,9 +729,11 @@ async function checkPin() {
       authenticated = true;
     } else if (pinStatus.type === 'hash') {
       authenticated = (await hashPin(input.value)) === pinStatus.value;
+      if (authenticated) localStorage.setItem(LS_PIN_KEY, pinStatus.value);
     } else if (pinStatus.type === 'plain') {
       if (input.value === pinStatus.value) {
         const newHash = await hashPin(input.value);
+        localStorage.setItem(LS_PIN_KEY, newHash);
         await saveSetting('pin_hash', newHash);
         await sb.from('uklidy_settings').delete().eq('key', 'pin');
         authenticated = true;
@@ -727,6 +746,7 @@ async function checkPin() {
       document.getElementById('pinScreen').style.display = 'none';
       startApp();
       if (noPinSet) setTimeout(() => showToast('⚠️ PIN není nastaven — nastav ho v Nastavení'), 1500);
+      if (dbOffline) setTimeout(() => showToast('⚠️ Offline režim — data se nemusí načíst'), 1500);
     } else {
       input.classList.add('shake');
       error.textContent = 'Špatný PIN';
