@@ -680,6 +680,18 @@ async function hashPin(pin) {
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+async function loadPinFromDb() {
+  const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('Vypršel časový limit připojení')), 8000));
+  const query = (async () => {
+    const { data: h } = await sb.from('uklidy_settings').select('value').eq('key', 'pin_hash').maybeSingle();
+    if (h?.value) return { type: 'hash', value: h.value };
+    const { data: p } = await sb.from('uklidy_settings').select('value').eq('key', 'pin').maybeSingle();
+    if (p?.value) return { type: 'plain', value: String(p.value) };
+    return { type: 'none' };
+  })();
+  return Promise.race([query, timeout]);
+}
+
 async function checkPin() {
   const input = document.getElementById('pinInput');
   const error = document.getElementById('pinError');
@@ -688,39 +700,43 @@ async function checkPin() {
 
   input.disabled = true;
   btn.disabled = true;
-  error.textContent = '';
+  error.textContent = 'Ověřuji…';
 
-  let authenticated = false;
+  try {
+    const pinStatus = await loadPinFromDb();
+    let authenticated = false;
+    let noPinSet = false;
 
-  // Primárně: SHA-256 hash uložený v DB
-  const { data: hashRow } = await sb.from('uklidy_settings').select('value').eq('key', 'pin_hash').single();
-  if (hashRow?.value) {
-    const inputHash = await hashPin(input.value);
-    if (inputHash === hashRow.value) authenticated = true;
-  }
-
-  // Záložní: starý plaintext PIN (migrace ze staré verze)
-  if (!authenticated) {
-    const { data: oldPinRow } = await sb.from('uklidy_settings').select('value').eq('key', 'pin').single();
-    if (oldPinRow?.value && String(oldPinRow.value) === input.value) {
-      const newHash = await hashPin(input.value);
-      await saveSetting('pin_hash', newHash);
-      await sb.from('uklidy_settings').delete().eq('key', 'pin');
+    if (pinStatus.type === 'none') {
+      noPinSet = true;
       authenticated = true;
+    } else if (pinStatus.type === 'hash') {
+      authenticated = (await hashPin(input.value)) === pinStatus.value;
+    } else if (pinStatus.type === 'plain') {
+      if (input.value === pinStatus.value) {
+        const newHash = await hashPin(input.value);
+        await saveSetting('pin_hash', newHash);
+        await sb.from('uklidy_settings').delete().eq('key', 'pin');
+        authenticated = true;
+      }
     }
-  }
 
-  input.disabled = false;
-  btn.disabled = false;
-
-  if (authenticated) {
-    sessionStorage.setItem('uklidy_auth', '1');
-    document.getElementById('pinScreen').style.display = 'none';
-    startApp();
-  } else {
-    input.classList.add('shake');
-    error.textContent = 'Špatný PIN';
-    setTimeout(() => { input.classList.remove('shake'); input.value = ''; error.textContent = ''; input.focus(); }, 600);
+    error.textContent = '';
+    if (authenticated) {
+      sessionStorage.setItem('uklidy_auth', '1');
+      document.getElementById('pinScreen').style.display = 'none';
+      startApp();
+      if (noPinSet) setTimeout(() => showToast('⚠️ PIN není nastaven — nastav ho v Nastavení'), 1500);
+    } else {
+      input.classList.add('shake');
+      error.textContent = 'Špatný PIN';
+      setTimeout(() => { input.classList.remove('shake'); input.value = ''; error.textContent = ''; input.focus(); }, 600);
+    }
+  } catch (e) {
+    error.textContent = '❌ ' + e.message;
+  } finally {
+    input.disabled = false;
+    btn.disabled = false;
   }
 }
 
